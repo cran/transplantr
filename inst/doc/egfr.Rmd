@@ -1,0 +1,149 @@
+---
+title: "Estimated GFR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{egfr}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Introduction
+
+Glomerular filtration rate can only be determined accurately by direct measurement of renal clearance of markers such as inulin, ^51^Cr-EDTA, ^125^I-iothalamate or iohexol, but GFR can be estimated from serum creatinine using a number of established formulae. There is no perfect formula for all levels of renal function, and all formulae can be inaccurate if renal function is unstable, at extremes of BMI, in pregnancy, muscle wasting or gross oedema.
+
+The **CKD-EPI**(_1_) and abbreviated **MDRD**(_2_) formulae are the ones most commonly used for adults, and are both based on large numbers of patients with direct GFR measurement and standardised serum creatinine measurements using isotope dilution mass spectrometry. The CKD-EPI formula is more accurate for patients with GFR greater than 60 ml/min, although as both formulae are based on regression splines, neither is accurate for GFR greater than 90ml/min. The MDRD formula was updated in 2005, and this later revision is used in this package. The CKD-EPI formula was recommended for estimation of GFR in adults in NICE Clinical Guideline 128 (2014). In the USA, the MDRD formula was recommended in NKF-KDOQI 2002, and the CKD-EPI formula recommended by KDIGO 2013. Both produce an estimate of GFR for a patient with body surface area of 1.73m^2^.
+
+The bedside **Schwartz**(_3_) formula is more accurate in children, and recommended for GFR estimation in patients under 19 by the National Kidney Federation and National Kidney Disease Education Program in the USA.
+
+The **Cockcroft-Gault**(_4_) equation estimates creatinine clearance rather than GFR and tends to overestimate actual GFR as creatinine is cleared from the kidney by tubular secretion as well as glomerular filtration. It is still widely used for renal drug dosing, although the National Kidney Federation in the USA recommend CKD-EPI or MDRD instead.
+
+Results from eGFR calculators may vary due rounding errors. The functions in the _transplantr_ package convert creatinine units as 1.00 mg/dl being equal to 88.4 µmol/l
+
+I find the functions are easiest to use with _dplyr_, using the `mutate()` verb inside a pipe.
+
+```{r setup}
+library(transplantr)
+library(dplyr)
+```
+
+# CKD-EPI formula
+
+The CKD-EPI formula eGFR is calculated from age, sex and ethnicity as well as serum creatinine. The basic function to return its value is `ckd_epi()` which takes creatinine in either µmol/l (by default) or mg/dl, age in years, sex as `0` for female or `1` for male, and ethnicity as `"black"` or `"non-black"`. The `units` parameter defines the units used for serum creatinine, taking a value of either `"SI"` for µmol/l or `"US"` for mg/dl; if the parameter is not provided, it defaults to `"SI"`.
+
+There is also a `ckd_epi_US()` wrapper function which uses mg/dl as the creatinine unit. This is quicker to type than `ckd_epi(..., units = "US")` but is very fractionally slower.
+
+This is a vectorised function, which takes numeric vectors as its input and returns a numeric vector. I would typically call the function from within a `mutate()` call in a _dplyr_ pipe, which adds a new variable to the dataframe:
+
+```{r}
+data(results)
+
+results2 <- results %>%
+  mutate(eGFR = ckd_epi(creat = Creatinine, age = Age, sex = Sex, eth = Ethnicity))
+
+results2
+```
+
+If creatinine is measured in mg/dl, the variant code would be one of these two alternatives:
+
+```{r}
+data(results_US)
+
+# using the standard function
+results_US2 <- results_US %>%
+  mutate(eGFR = ckd_epi(creat = Creatinine, age = Age, sex = Sex,
+        eth = Ethnicity, units = "US"))
+
+# using the wrapper function
+results_US3 <- results_US %>%
+          mutate(eGFR = ckd_epi_US(creat = Creatinine, age = Age, sex = Sex,
+          eth = Ethnicity))
+
+results_US2
+
+results_US3
+```
+
+If you don't like _dplyr_, the functions also work well within Base R:
+
+```{r, eval = F}
+mydata$eGFR <- ckd_epi(creat = SCr, age = Age, sex = Sex, eth = Ethnicity)
+```
+
+## Calculating serial eGFR Results
+
+In renal transplant follow-up, it is common to report eGFR at various timepoints, such as 1, 2 and 5 year eGFR. This is facilitated by the `ckd_epi()` function using the optional `offset` parameter which adds a year to the baseline age. For example, to calculate 1 and 5 year eGFR, the code would be something like this:
+
+```{r}
+data(serial.results)
+
+serial.results2 <- serial.results %>%
+  mutate(eGFR_1yr = ckd_epi(creat = Creatinine_1yr, age = Age, sex = Sex,
+                    eth = Ethnicity, offset = 1),
+         eGFR_5yr = ckd_epi(creat = Creatinine_5yr, age = Age, sex = Sex,
+                    eth = Ethnicity, offset = 5))
+
+serial.results2
+```
+
+# Abbreviated MDRD formula
+
+Using abbreviated MDRD formula eGFR is also calculated from age, sex and ethnicity as well as serum creatinine. The basic function to return its value is `mdrd()` which takes creatinine in either µmol/l (by default) or mg/dl, age in years, sex as `0` for female or `1` for male, and ethnicity as `"black"` or `"non-black"`. The `units` parameter defines the units used for serum creatinine, taking a value of either `"SI"` for µmol/l or `"US"` for mg/dl; if the parameter is not provided, it defaults to `"SI"`.
+
+Like CKD-EPI function, there is also a `mdrd_US()` wrapper function which uses mg/dl as the creatinine unit.
+
+This is also vectorised function, and is generally called from within a `mutate()` call in a _dplyr_ pipe:
+
+```{r, eval = F}
+results2m <- results %>%
+  mutate(eGFR = mdrd(creat = Creatinine, age = Age, sex = Sex, eth = Ethnicity))
+```
+
+Using mg/dl as units or base R work in the same way as the `ckd_epi()` formula, and the `mdrd()` can also accept an optional `offset` parameter to facilitate serial results.
+
+There is also a fuller six-variable MDRD formula which may be added to this package in the future. The six-variable formula includes albumin and either urea or blood urea nitrogen (BUN).
+
+# Schwartz formula
+
+The bedside Schwartz formula is used for children under 19 and is a simpler version of the original Schwartz formula published in 1984. It is calculated using the `schwartz()` function and uses serum creatinine in either µmol/l (by default) or mg/dl and height in cm. Like the other formulae in the package, the `units` parameter defines the units used for serum creatinine, taking a value of either `"SI"` for µmol/l or `"US"` for mg/dl; if the parameter is not provided, it defaults to `"SI"`. There is also a `schwartz_US()` wrapper function which uses mg/dl.
+
+```{r, eval = F}
+results2p <- results %>%
+  mutate(eGFR = schwartz(creat = Creatinine, height = Height))
+```
+
+In the same way as the CKD-EPI and MDRD functions, using the optional offset parameter helps to generate serial results.
+
+# Cockcroft-Gault formula
+
+The Cockcroft-Gault formula provides a reasonably accurate estimation of creatinine clearance, but this is _not_ the same as glomerular filtration as creatinine is also cleared by tubular secretion, and so the equation tends to overestimate GFR by up to 25%. It is still used in renal dose calculations in the UK, although the US guidance is to use CKD-EPI or MDRD instead. It is also worth noting that the methodology from which it was derived assumes ideal body weight.
+
+In the _transplantr_ package, the creatinine clearance can be calculated with the `cockcroft()` function, which takes creatinine, age, sex and weight as core arguments. The creatinine is in µmol/l by default, but can be changed to mg/dl either by specifying `units` to be `"US"` or by calling the wrapper function `cockcroft_US()`. Ideal body weight can be calculated from height and sex using the `ibw()` function. An example using a _dplyr_ pipe:
+
+```{r, eval = F}
+results2cg <- results %>%
+  mutate(Ideal.Weight = ibw(height = Height, sex = Sex),
+         CrClear = cockcroft(creat = Creatinine, age = Age, sex = Sex,
+                             weight = Ideal.Weight))
+```
+
+
+# Formulae to be added in future
+
+The **Nankivell** and **Walser** formulae are less commonly used. The Nankivell formula is the only eGFR formula derived entirely from renal transplant patients, but included patients with unstable GFR. The Nankivell formula includes weight and height so approximates an absolute GFR. The Walser formula produces a result standardised to a height-squared of 3m^2^.
+
+# References
+
+1. Levey AS, Stevens LA, Schmid CH, et al. for the CKD-EPI (Chronic Kidney Disease Epidemiology Collaboration). A new equation to estimate glomerular filtration rate. _Ann Intern Med_ 2009; 150(9):604-612. DOI: [10.7326/0003-4819-150-9-200905050-00006](https://doi.org/10.7326/0003-4819-150-9-200905050-00006)
+
+2. Levey AS, Greene T, Kusek JW, et al. A simplified equation to predict glomerular filtration rate from serum creatinine. _J Am Soc Nephrol_ 2000; 11:A0828.
+
+3. Schwartz GJ, Munoz A, Schneider MF et al. New equations to estimate GFR in children with CKD. _J Am Soc Nephrol_ 2009; 20(3):629-637. DOI: [10.1681/ASN.2008030287](https://doi.org/10.1681/ASN.2008030287)
+
+4. Cockcroft DW, Gault MH. Prediction of creatinine clearance from serum creatinine. _Nephron_ 1976; 16(1):31-41. DOI: [10.1159/000180580](https://doi.org/10.1159/000180580)

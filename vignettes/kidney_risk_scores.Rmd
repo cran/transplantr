@@ -1,0 +1,250 @@
+---
+title: "Kidney Donor and Recipient Risk Index"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{kidney_risk_scores}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Introduction
+
+The transplantr package includes vectorised functions to calculate a number of different deceased donor kidney risk indices which are based on Cox models of transplant survival and can be used to audit or risk adjust transplant outcome data.
+
+The models included in version 0.1.0 are:
+
+* UK Kidney Donor Risk Index (2019 version): `ukkdri()`
+* UK Kidney Donor Risk Index (2012 version): `watson_ukkdri()`
+* UK Kidney Recipient Risk Index: `ukkrri()`
+* US Kidney Donor Risk Index: `uskdri()`
+* US Estimated Post-Transplant Survival Score (EPTS): `raw_epts()`
+
+The US risk index uses donor creatinine as a parameter, and the `uskdri()` function in this package 
+uses creatinine measured in mcmol/l as the default for all functions, but creatinine can be entered in 
+mg/dl either by setting the optional `units` parameter to "SI" or by calling the wrapper function `uskdri_US()` instead. All of the functions in transplantr using creatinine or bilirubin use units 
+in the same way - for mg/dl either use `units == "US"` or call the `..._US()` wrapper function.
+
+To start, load the transplantr library and I would also recommend using dplyr to incorporate the results of these functions into your datasets:
+
+```{r setup}
+library(transplantr)
+library(dplyr)
+```
+
+# UK Kidney Donor and Recipient Risk Indices (2019)
+
+The current UK Kidney Donor and Recipient Risk Indices(_1_) are based on transplant and recipient survival data from the UK National Transplant Database and have been incorporated into the new deceased donor kidney matching scheme launched in September 2019, which aims to match expected transplant and recipient survival (although a number of other factors are also used in the algorithm).
+
+## UK Kidney Donor Risk Index
+
+The `ukkdri()` function calculates the donor risk and uses the following parameters:
+
+Parameter | Description | Values
+----------|-------------|-------
+age | donor age in years | numeric vector
+height | donor height in cm | numeric vector
+htn | donor history of hypertension | numeric vector of values of 1 (yes) or 0 (no)
+sex | donor sex | character vector of values of "F" or "M"
+cmv | whether donor is CMV seropositive | numeric vector of values of 1 (yes) or 0 (no)
+gfr | donor eGFR in ml/min | numeric vector
+hdays | length of donor hospital stay | numeric vector
+
+Using vectors of 1 and 0 is more efficient than TRUE/FALSE or "Male"/"Female", but if your dataset 
+uses these values instead, it is easy enough to convert them with the dplyr::mutate() verb:
+
+```{r}
+# load dataset
+data("kidney.donors")
+kidney.donors
+
+# change required variables to 1/0
+kidney.donors2 = kidney.donors %>%
+  mutate(Donor.Hypertension = if_else(Donor.Hypertension == TRUE, 1, 0),
+         Donor.Sex = if_else(Donor.Sex == "F", 1, 0),
+        Donor.CMV = if_else(Donor.CMV == "Pos", 1, 0))
+
+# view updated dataset
+kidney.donors2
+```
+
+The result can be converted into quartiles using the `ukkdri_q()` function. This takes a numeric vector of donor risk index values as its input and returns a vector of quartiles. This is reported a 1-4 by default, but can be prefixed with a "D" to match the NHSBT ODT nomenclature if the optional `prefix` parameter is set to TRUE, and can be reported as a factor vector by setting `fct` to TRUE.
+
+Generating the results is also easy to do with _dplyr_:
+
+```{r}
+# calculate UKKDRI 
+kidney.donors3 = kidney.donors2 %>%
+  mutate(UKKDRI = ukkdri(age = Donor.Age, height = Donor.Height, htn = Donor.Hypertension,
+                         sex = Donor.Sex, cmv = Donor.CMV, gfr = Donor.GFR, 
+                         hdays = Donor.Hospital_Stay),
+         UKKDRI.Quartile = ukkdri_q(UKKDRI, prefix = TRUE, fct = TRUE))
+
+# display results (with selected variables)
+kidney.donors3 %>%
+  select(Donor.Age, Donor.GFR, UKKDRI, UKKDRI.Quartile)
+```
+
+Although vectorised functions, `ukkdri()` and `ukkdri_q()` will also work with single values:
+
+```{r}
+ukkdri(age = 50, height = 170, htn = 1, sex = "F", cmv = 0, gfr = 90, hdays = 2)
+
+ukkdri_q(0.8572, prefix = T)
+```
+
+## UK Recipient Risk Index
+
+The `ukkrri()` function calculates the UK Kidney Recipient Risk Index using the following parameters:
+
+Parameter | Description | Values
+---|---|---
+age | recipient age in years | numeric vector
+dx | whether recipient on dialysis at time of listing | numeric vector of 1 (yes) and 0 (no)
+wait | waiting time since start of dialysis in days | numeric vector
+dm | whether recipient has diabetes | numeric vector of 1 (yes) and 0 (no)
+
+Like the donor risk index, the UKKRRI can be converted into quartiles of risk using the `ukkrri_q()` function, which like the `ukkdri_q()` function takes optional parameters to indicate whether a prefix or factor is wanted in the output.
+
+The easiest way to generate the UKKRRI data column is again to use dplyr::mutate() verb:
+
+```{r, eval = F}
+kidney.recipients2 = kidney.recipients %>%
+  mutate(UKKRRI = ukkrri(age = Recipient.Age, dx = Recipient.OnDialysis, 
+                         wait = Recipient.Waittime, dm = Recipient.Diabetes),
+         UKKRRI.Quartile = ukkrri_q(UKKRRI, prefix = T))
+```
+
+# UK Kidney Donor Risk Index (2012)
+
+The first version of the UK Kidney Donor Risk Index was published by Watson et al.(_2_) and based on Cox regression of kidney transplant survival from the UK National Transplant Registry. It is simpler than the US KDRI and slightly outperforms the US KDRI when applied to the UK transpant series. It can be calculated using the `watson_ukkdri()` function, which includes these variables:
+
+Parameter | Description | Values
+---|---|---
+age | donor age in years | numeric vector
+htn | whether donor has history of hypertension | numeric vector of 1 = yes, 0 = no
+weight | donor weight in kg | numeric vector
+hdays | length of donor hospital stay | numeric vector
+adrenaline | whether donor treated with adrenaline infusion | numeric vector of 1 = yes, 0 = no
+
+It can be called within a _dplyr_ pipe as above, or as a single calculation:
+
+
+```{r}
+watson_ukkdri(age = 40, htn = 0, weight = 75, hdays = 0, adrenaline = 0)
+```
+
+
+# US Kidney Donor Risk Index
+
+The US Kidney Donor Risk Index is a longer established risk stratification tool developed from American registry data, and can be calculated using the `uskdri()` function. The donor's serum creatinine is one of the parameters used, and like the other functions in _transplantr_ the default unit is µmol/l but can be changed to mg/dl either by setting the `units` parameter to `"US` or by calling the `uskdri_US()` wrapper function. The risk index function uses these variables:
+
+Parameter | Description | Values
+---|---|---
+age | donor age in years | numeric vector
+height | donor height in cm | numeric vector
+weight | donor weight in kg | numeric vector
+eth | donor ethnicity | character string vector of "black" or "non-black"
+htn | whether donor has history of hypertension | numeric vector of 1 = yes, 0 = no
+dm | whether donor has diabetes mellitus | numeric vector of 1 = yes, 0 = no
+cva | whether donor cause of death was CVA | numeric vector of 1 = yes, 0 = no
+creat | donor creatinine | numeric vector
+hcv | whether donor has hepatitis C seropositive | numeric vector of 1 = yes, 0 = no
+dcd | whether donor is DCD | numeric vector of 1 = DCD, 0 = DBD
+scaling | OPTN Scaling Factor | single number (defaults to 1)
+units | creatinine units | single string of "SI" for µmol/l or "US" for mg/dl
+
+The Scaling Factor is the median KDRI for kidney donors in the USA in the previous year, and is published each year on the [OPTN website](https://optn.transplant.hrsa.gov/resources/allocation-calculators/kdpi-calculator/), 
+together with a table for converting KDRI to KDPI, which gives a percentile of risk. For 2019 the scaling factor is approximately 1.2507. This normalises the donor risk within each year, but I think it obscures inter-year comparisons. The `scaling` parameter defaults to 1 so can be left out when a non-scaled KDRI is desired.
+
+As a vectorised function, this works well when calculating US KDRI for a large series using a _dplyr_ pipe with code like this:
+
+```{r, eval = F}
+kidney.donors3us = kidney.donors2 %>%
+  mutate(USKDRI = uskdri(age = Donor.Age, height = Donor.Height, weight = Donor.Weight,
+                         eth = Donor.Race, htn = Donor.Hypertension, dm = Donor.Diabetes,
+                         cva = Donor.CVA, creat = Donor.Creatinine,
+                         hcv = Donor.HepatitisC, dcd = Donor.Type, 
+                         scaling = 1.250697, units = "US"))
+```
+
+The function can also be used for a single case:
+
+```{r}
+# with creatinine in µmol/l (units = "SI" can be omitted)
+uskdri(age = 40, height = 170, weight = 80, eth = "non-black", htn = 0, dm = 0,
+    cva = 0, creat = 120, hcv = 0, dcd = 0, scaling = 1.250697, units = "SI")
+
+# with creatinine in mg/dl and omitting scaling factor
+uskdri(age = 40, height = 170, weight = 80, eth = "non-black", htn = 0, dm = 0,
+    cva = 0, creat = 1.4, hcv = 0, dcd = 0, units = "US")
+```
+
+## US KDPI
+
+The KDPI is a percentile of risk converted from the US KDRI using the scaling factor and a lookup table published on the OPTN website each year. There is a `kdpi()` function to calculate the KDPI from the same parameters used the the `uskdri()` function and a matching `kdri_US()` wrapper function for use when donor creatinine is measured in mg/dl. The transplantr package also has a `kdpi_lookup()` function to convert a KDRI score to KDPI percentile. 
+
+These functions require the dplyr package to be installed. The functions are called in the same way as above, or for a single case:
+
+```{r}
+# with creatinine in µmol/l (units = "SI" can be omitted)
+kdpi(age = 40, height = 170, weight = 80, eth = "non-black", htn = 0, dm = 0,
+    cva = 0, creat = 120, hcv = 0, dcd = 0, scaling = 1.250697, units = "SI")
+
+# with creatinine in mg/dl
+kdpi_US(age = 40, height = 170, weight = 80, eth = "non-black", htn = 0, dm = 0,
+    cva = 0, creat = 1.4, hcv = 0, dcd = 0, scaling = 1.250697)
+```
+
+# Estimated Post-Transplant Survival Score (EPTS)
+
+The EPTS(_4_) is used in the USA to predict patient survival after adult renal transplantation compared to other patients on the deceased donor waiting list, and uses age, diabetes status, previous organ transplants and duration of dialysis as predictors. These generate a raw EPTS score which is then converter to a percentile of risk using a [lookup table](https://optn.transplant.hrsa.gov/media/2973/epts_mapping_table_2018.pdf) on the OPTN website. 
+
+In the US the EPTS score is used in conjunction with the USKDRI score to prioritise the 20% of patients with best expected transplant survival for the 20% of kidneys with best anticipated long-term function.
+
+The EPTS (as a percentile) can be calculated with with the `epts()` function and the raw EPTS score with the `raw_epts()` function in the transplantr package. Both functions take the following parameters:
+
+Parameter | Description | Values
+---|---|---
+age | recipient age in years | numeric vector
+dm | whether recipient has diabetes | numeric vector of 1 (yes) and 0 (no)
+prev_tx | whether previous solid organ transplant | numeric vector of 1 (yes) and 0 (no)
+dx | duration of dialysis in years | numeric vector
+
+It should be noted that the age and dx parameters can and should be used with exact age using decimals and not an integer of number of years.
+
+The `epts()` function in the transplantr package, which requires the dplyr package to be installed, currently uses the most recent published lookup table on the OPTN website, published in March 2019 using SRTR data from 2018. Archives of lookup tables from previous years are also available on the OPTN website.
+
+Like most of the other functions in the transplantr package, the `raw_epts()` is vectorised and can be used very efficiently to calculate multiple scores in a dplyr pipe:
+
+```{r, eval = F}
+kidney.recipients2a = kidney.recipients %>%
+  mutate(EPTS.raw = raw_epts(age = Recipient.Age, dm = Recipient.Diabetes, 
+                             prev_tx = Recipient.PreviousTransplant, dx = Recipient.Waittime),
+         EPTS = epts(age = Recipient.Age, dm = Recipient.Diabetes, 
+                             prev_tx = Recipient.PreviousTransplant, dx = Recipient.Waittime))
+```
+
+But it can also be used with a single case:
+
+```{r}
+raw_epts(age = 23.58, dm = 0, prev_tx = 1, dx = 5.081)
+epts(age = 23.58, dm = 0, prev_tx = 1, dx = 5.081)
+```
+
+# References
+
+1. NHSBT Policy POL186/10. Kidney Transplantation: Deceased Donor Allocation.
+[https://nhsbtdbe.blob.core.windows.net/umbraco-assets-corp/16915/kidney-allocation-policy-pol186.pdf](https://nhsbtdbe.blob.core.windows.net/umbraco-assets-corp/16915/kidney-allocation-policy-pol186.pdf) _(viewed 28th December 2019)_
+
+2. Watson CJ, Johnson RJ, Birch R, et al. A Simplified Donor Risk Index for Predicting Outcome After Deceased Donor Kidney Transplantation. _Transplantation_ 2012; 93(3):314-318. DOI: [10.1097/TP.0b013e31823f14d4](https://doi.org/10.1097/TP.0b013e31823f14d4)
+
+3. Rao PS, Schaubel DE, Guidinger MK, et al. A Comprehensive Risk Quantification Score for Deceased Donor Kidneys: The Kidney Donor Risk Index. _Transplantation_ 2009; 88:231-236. DOI: [10.1097/TP.0b013e3181ac620b](https://doi.org/10.1097/TP.0b013e3181ac620b)
+
+4. Estimated Post-Transplant Survival Score. [https://optn.transplant.hrsa.gov/media/1511/guide_to_calculating_interpreting_epts.pdf](https://optn.transplant.hrsa.gov/media/1511/guide_to_calculating_interpreting_epts.pdf)
