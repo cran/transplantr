@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 
 
@@ -116,9 +115,6 @@ padding-right: 2em;
 font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 font-size: 14px;
 line-height: 1.35;
-}
-#header {
-text-align: center;
 }
 #TOC {
 clear: both;
@@ -287,7 +283,8 @@ code > span.st { color: #d14; }
 code > span.co { color: #888888; font-style: italic; } 
 code > span.ot { color: #007020; } 
 code > span.al { color: #ff0000; font-weight: bold; } 
-code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61717; background-color: #e3d2d2; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
 </style>
 
 
@@ -422,7 +419,8 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 </div>
 <div id="formulae-to-be-added-in-future" class="section level1">
 <h1>Formulae to be added in future</h1>
-<p>The <strong>Nankivell</strong> and <strong>Walser</strong> formulae are less commonly used. The Nankivell formula is the only eGFR formula derived entirely from renal transplant patients, but included patients with unstable GFR. The Nankivell formula includes weight and height so approximates an absolute GFR. The Walser formula produces a result standardised to a height-squared of 3m<sup>2</sup>.</p>
+<p>The <strong>Nankivell</strong> and <strong>Walser</strong> formulae are less commonly used. The Nankivell formula is the only eGFR formula derived entirely from renal transplant patients, but included patients with unstable GFR(<em>5</em>). The Nankivell formula includes weight and height so approximates an absolute GFR. The Walser formula produces a result standardised to a height-squared of 3m<sup>2</sup>(<em>6</em>).</p>
+<p>Both are now available using the <code>nankivell()</code> and <code>walser()</code> functions, but as they are so little used, and have been quoted in varying forms in the literature, it has not been possible to run automated tests so either function may return wrong results.</p>
 </div>
 <div id="references" class="section level1">
 <h1>References</h1>
@@ -431,6 +429,8 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <li><p>Levey AS, Greene T, Kusek JW, et al. A simplified equation to predict glomerular filtration rate from serum creatinine. <em>J Am Soc Nephrol</em> 2000; 11:A0828.</p></li>
 <li><p>Schwartz GJ, Munoz A, Schneider MF et al. New equations to estimate GFR in children with CKD. <em>J Am Soc Nephrol</em> 2009; 20(3):629-637. DOI: <a href="https://doi.org/10.1681/ASN.2008030287">10.1681/ASN.2008030287</a></p></li>
 <li><p>Cockcroft DW, Gault MH. Prediction of creatinine clearance from serum creatinine. <em>Nephron</em> 1976; 16(1):31-41. DOI: <a href="https://doi.org/10.1159/000180580">10.1159/000180580</a></p></li>
+<li><p>Nankivell BJ, Gruenwald SM, Allen RD, Chapman JR: Predicting glomerular filtration rate after renal transplantation. Transplantation 1995; 59:1683-89.</p></li>
+<li><p>Walser M, Drew HH, Guldan JL. Prediction of glomerular filtration rate in advanced chronic renal failure. Kidney International 1993; 44:2245-1148.</p></li>
 </ol>
 </div>
 
